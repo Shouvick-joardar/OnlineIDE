@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse, HttpRequest, JsonResponse
+from rest_framework.decorators import api_view, permission_classes
+
 from .models import Submissions
 from rest_framework.viewsets import ModelViewSet
 from .serializers import SubmissionSerializer, UserSerializer
@@ -28,13 +30,24 @@ class LoginView(KnoxLoginVIew):
 class SubmissionsViewSet(ModelViewSet):
     queryset = Submissions.objects.all()
     serializer_class = SubmissionSerializer
+    permission_classes = (permissions.IsAuthenticated,)
 
     def create(self, request, *args, **kwargs):
         request.data['status'] = 'P'
+        request.data['user'] = request.user.pk
         file_name = create_code_file(request.data.get('code'), request.data.get('language'))
         output = execute_file(file_name, request.data.get('language'))
         request.data['output'] = output
         return super().create(request, args, kwargs)
+
+
+@api_view(http_method_names=['POST'])
+@permission_classes((permissions.AllowAny,))
+def register(request):
+    serializer = UserSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    user = serializer.save()
+    return Response(UserSerializer(user).data, status=200)
 
 
 class UserViewSet(ModelViewSet):
